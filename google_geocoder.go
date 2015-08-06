@@ -29,9 +29,16 @@ type googleGeocodeResponse struct {
 	}
 }
 
-type googleReverseGeocodeResponse struct {
+type AddressComponent struct {
+	LongName  string `json:"long_name"`
+	ShortName string `json:"short_name"`
+	Types     []string
+}
+
+type GoogleReverseGeocodeResponse struct {
 	Results []struct {
-		FormattedAddress string `json:"formatted_address"`
+		AddressComponents []AddressComponent `json:"address_components"`
+		FormattedAddress  string             `json:"formatted_address"`
 	}
 }
 
@@ -138,27 +145,35 @@ func googleGeocodeQueryStr(address string) (string, error) {
 // Reverse geocodes the pointer to a Point struct and returns the first address that matches
 // or returns an error if the underlying request cannot complete.
 func (g *GoogleGeocoder) ReverseGeocode(p *Point) (string, error) {
-	queryStr, err := googleReverseGeocodeQueryStr(p)
+	res, err := g.ReverseGeocodeFull(p)
 	if err != nil {
 		return "", err
+	}
+	return res.Results[0].FormattedAddress, err
+}
+
+func (g *GoogleGeocoder) ReverseGeocodeFull(p *Point) (*GoogleReverseGeocodeResponse, error) {
+	queryStr, err := googleReverseGeocodeQueryStr(p)
+	if err != nil {
+		return nil, err
 	}
 
 	data, err := g.Request(queryStr)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	res := &googleReverseGeocodeResponse{}
+	res := &GoogleReverseGeocodeResponse{}
 	err = json.Unmarshal(data, res)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(res.Results) == 0 {
-		return "", googleZeroResultsError
+		return nil, googleZeroResultsError
 	}
 
-	return res.Results[0].FormattedAddress, err
+	return res, err
 }
 
 func googleReverseGeocodeQueryStr(p *Point) (string, error) {
